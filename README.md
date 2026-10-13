@@ -26,12 +26,35 @@
 └── README.md
 ```
 
-## 🚀 快速启动
+## 🔧 环境准备
+
+1. Python 3.10 或更高版本。
+2. 复制 `.env.example` 为 `.env`，填写模型服务商 API Key：使用 OpenAI 时设置 `OPENAI_API_KEY`；使用兼容服务时同时设置 `OPENAI_BASE_URL` 与 `OPENAI_MODEL`。
+3. 安装依赖并安装本包（可编辑模式）：
+
 ```bash
-pip install -r requirements.txt
-python -m lit_review_agent ingest demo_papers
-python -m lit_review_agent ask "你的研究问题"
+pip install -e .
 ```
+
+## 🚀 快速启动
+
+```bash
+python -m lit_review_agent ingest demo_papers              # 导入演示文献到本地向量库
+python -m lit_review_agent ask "比较两篇演示研究的结论"      # 一次性提问
+python -m lit_review_agent chat                             # 多轮研究对话，输入 exit 退出
+```
+
+## 📖 使用说明
+
+| 命令 | 说明 |
+| --- | --- |
+| `ingest <文件或目录>` | 解析 PDF/Markdown 文献，切片后写入 Chroma 向量库 |
+| `ask "<问题>"` | 一次性生成带引用的综述；可用 `--source`、`--from-year`、`--to-year` 过滤来源/年份 |
+| `chat` | 进入多轮对话；`--session ID` 指定会话，`--source` 等范围参数持续生效 |
+
+## 🧭 工作流程
+
+`意图解析 → 混合检索（Chroma 语义 + BM25 关键词，RRF 融合）→ 证据分析 → 综述生成与引用校验`。每条观点都绑定可核验的引用 ID；证据不足时会改写检索式继续检索，或明确说明无法支持结论，不编造综述。
 
 ## 🧩 功能亮点
 

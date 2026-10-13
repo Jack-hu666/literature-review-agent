@@ -1,3 +1,5 @@
+"""混合检索：以倒数排名融合（RRF）合并 Chroma 语义检索与 BM25 关键词检索。"""
+
 import logging
 import re
 from collections import defaultdict
@@ -12,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def _tokenize(text: str) -> list[str]:
+    """中文按重叠二元组、英文按小写词切分，供 BM25 关键词召回使用。"""
     tokens: list[str] = []
     for segment in re.findall(r"[a-z0-9]+|[\u4e00-\u9fff]+", text.casefold()):
         if segment.isascii():
@@ -24,7 +27,7 @@ def _tokenize(text: str) -> list[str]:
 
 
 class HybridRetriever:
-    """Fuse Chroma semantic search and BM25 keyword search with reciprocal rank fusion."""
+    """以倒数排名融合（RRF）合并 Chroma 语义检索与 BM25 关键词检索结果。"""
 
     def __init__(self, vector_store: Chroma, top_k: int = 6, rrf_constant: int = 60) -> None:
         self.vector_store = vector_store
@@ -32,6 +35,7 @@ class HybridRetriever:
         self.rrf_constant = rrf_constant
 
     def _all_documents(self) -> list[Document]:
+        """从 Chroma 取出全部已入库片段及其元数据。"""
         stored = self.vector_store.get(include=["documents", "metadatas"])
         contents = stored.get("documents") or []
         metadatas = stored.get("metadatas") or []
@@ -43,6 +47,7 @@ class HybridRetriever:
 
     @staticmethod
     def _matches_scope(document: Document, scope: ResearchScope) -> bool:
+        """按来源/标题/作者与年份范围判断片段是否满足检索范围。"""
         metadata = document.metadata
         if scope.source_filter:
             needle = scope.source_filter.casefold()
@@ -57,6 +62,7 @@ class HybridRetriever:
         return True
 
     def search(self, query: str, scope: ResearchScope | None = None) -> list[Document]:
+        """执行混合检索并按 RRF 分数返回前 top_k 个片段。"""
         scope = scope or ResearchScope()
         corpus = self._all_documents()
         if not corpus:

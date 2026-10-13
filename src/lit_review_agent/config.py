@@ -1,3 +1,5 @@
+"""运行时配置：从环境变量或 .env 加载模型、向量库与切分参数。"""
+
 from pathlib import Path
 
 from pydantic import Field
@@ -5,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Runtime configuration. Secrets are loaded from environment or .env."""
+    """运行时配置；密钥从环境变量或 .env 文件加载，未声明的环境变量会被忽略。"""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -21,6 +23,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     def require_api_key(self) -> str:
+        """返回已配置的 API Key；未配置时抛出可读的中文错误。"""
         if not self.openai_api_key:
             raise ValueError("未配置 OPENAI_API_KEY。请复制 .env.example 为 .env 并填写模型服务商 API Key。")
         return self.openai_api_key

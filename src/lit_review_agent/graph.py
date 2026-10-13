@@ -1,3 +1,5 @@
+"""LangGraph 工作流：意图解析 → 检索 → 证据分析 → 生成带引用的综述。"""
+
 import json
 import logging
 from typing import Any, TypedDict
@@ -22,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class AgentState(TypedDict, total=False):
+    """贯穿工作流的状态：问题、规划、检索结果、证据分析与最终答案。"""
     question: str
     conversation_history: list[dict[str, str]]
     plan: ResearchPlan
@@ -39,14 +42,17 @@ class AgentState(TypedDict, total=False):
 
 
 def _as_model(schema: type, response: Any) -> Any:
+    """把 LLM 输出规整为指定 Pydantic 模型实例。"""
     return response if isinstance(response, schema) else schema.model_validate(response)
 
 
 def _doc_to_dict(document: Document) -> dict[str, Any]:
+    """把 LangChain Document 转为可 JSON 序列化的字典。"""
     return {"page_content": document.page_content, "metadata": dict(document.metadata)}
 
 
 def _make_retrieval_tool(retriever: HybridRetriever) -> StructuredTool:
+    """把混合检索器包装为 LangChain 结构化工具 search_literature。"""
     def search_literature(
         query: str,
         source_filter: str | None = None,
@@ -66,6 +72,7 @@ def _make_retrieval_tool(retriever: HybridRetriever) -> StructuredTool:
 
 
 def _make_citation(chunk: dict[str, Any]) -> Citation:
+    """把检索片段及其元数据转为可渲染的引用对象。"""
     metadata = chunk["metadata"]
     chunk_id = str(metadata.get("chunk_id", "unknown"))
     year = int(metadata.get("year") or 0) or None
@@ -80,6 +87,7 @@ def _make_citation(chunk: dict[str, Any]) -> Citation:
 
 
 def _render_answer(draft: AnswerDraft, citations: list[Citation]) -> str:
+    """把综述初稿与引用渲染为带引用标记与来源清单的 Markdown 文本。"""
     by_id = {item.citation_id: item for item in citations}
     lines = ["**文献观点与综合分析**"]
 
@@ -116,6 +124,7 @@ def build_graph(llm: Any, retriever: HybridRetriever, max_iterations: int = 3) -
     search_tool = _make_retrieval_tool(retriever)
 
     def parse_intent(state: AgentState) -> dict[str, Any]:
+        """解析问题意图，生成检索式与检索范围；不需要检索时直接转向回答。"""
         history = state.get("conversation_history", [])[-6:]
         prompt = [
             SystemMessage(content=(
@@ -151,9 +160,11 @@ def build_graph(llm: Any, retriever: HybridRetriever, max_iterations: int = 3) -
         }
 
     def decide_tool(state: AgentState) -> dict[str, Any]:
+        """把当前 route 透传给条件边。"""
         return {"route": state.get("route", "answer")}
 
     def retrieve(state: AgentState) -> dict[str, Any]:
+        """按当前检索式与范围执行检索，并去重合并到已检索片段。"""
         scope = state.get("scope", ResearchScope())
         result = search_tool.invoke({
             "query": state["search_query"],
@@ -174,6 +185,7 @@ def build_graph(llm: Any, retriever: HybridRetriever, max_iterations: int = 3) -
         return {"retrieved_chunks": combined, "iteration": iteration, "reasoning_logs": logs}
 
     def analyze_evidence(state: AgentState) -> dict[str, Any]:
+        """分析已检索证据，证据不足且未达轮数上限时改写检索式继续。"""
         prompt = [
             SystemMessage(content=(
                 "你是文献证据分析器。只依据提供的文献片段分析，不得补充常识或编造结论。"
@@ -211,6 +223,7 @@ def build_graph(llm: Any, retriever: HybridRetriever, max_iterations: int = 3) -
         return {"analysis": analysis, "reasoning_logs": logs, "route": "answer"}
 
     def answer(state: AgentState) -> dict[str, Any]:
+        """生成带引用的综述；引用校验失败时回退为带来源的片段摘录。"""
         plan: ResearchPlan = state["plan"]
         if plan.clarification_question:
             return {"final_answer": plan.clarification_question, "citations": []}
@@ -269,11 +282,13 @@ def build_graph(llm: Any, retriever: HybridRetriever, max_iterations: int = 3) -
         return {"final_answer": final_answer, "citations": [item.model_dump() for item in citations]}
 
     def output(state: AgentState) -> dict[str, Any]:
+        """把本轮问答追加到会话历史，保留最近若干轮。"""
         history = state.get("conversation_history", [])
         updated = history + [{"question": state["question"], "answer": state.get("final_answer", "")}]
         return {"conversation_history": updated[-12:]}
 
     def route(state: AgentState) -> str:
+        """根据 state.route 决定下一节点是继续检索还是生成回答。"""
         return "retrieve" if state.get("route") == "retrieve" else "answer"
 
     builder = StateGraph(AgentState)

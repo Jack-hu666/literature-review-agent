@@ -1,3 +1,5 @@
+"""文献导入：读取 PDF/Markdown、提取元数据并切分为文本片段。"""
+
 import hashlib
 import logging
 import re
@@ -15,6 +17,7 @@ SUPPORTED_SUFFIXES = {".pdf", ".md", ".markdown"}
 
 
 def read_source(path: Path) -> tuple[str, str | None]:
+    """读取单个文献的文本；返回 (文本, PDF 元信息标题)。扫描版 PDF 会抛出 ValueError。"""
     if path.suffix.lower() in {".md", ".markdown"}:
         return path.read_text(encoding="utf-8"), None
     reader = PdfReader(str(path))
@@ -26,6 +29,7 @@ def read_source(path: Path) -> tuple[str, str | None]:
 
 
 def extract_metadata(text: str, source: str, pdf_title: str | None = None) -> PaperMetadata:
+    """从文献开头解析显式的 Title/Authors/Year/Abstract 字段，缺失时按规则回退。"""
     lines = [line.strip().lstrip("#").strip() for line in text.splitlines() if line.strip()]
 
     def field_value(label: str) -> str | None:
@@ -89,6 +93,7 @@ def extract_metadata(text: str, source: str, pdf_title: str | None = None) -> Pa
 
 
 def load_documents(path: Path, settings: Settings) -> tuple[list[Document], int]:
+    """导入文件或目录下全部支持的文献并切分为片段；返回 (片段列表, 跳过文件数)。"""
     paths = [path] if path.is_file() else sorted(item for item in path.rglob("*") if item.is_file())
     supported = [item for item in paths if item.suffix.lower() in SUPPORTED_SUFFIXES]
     # Prefer PDF when a matching Markdown and PDF sample are both present.

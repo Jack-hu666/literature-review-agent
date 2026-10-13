@@ -1,3 +1,5 @@
+"""命令行入口：导入文献（ingest）、一次性提问（ask）与多轮对话（chat）。"""
+
 import argparse
 import logging
 import uuid
@@ -18,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_vector_store(settings: Settings) -> Chroma:
+    """按配置创建持久化的 Chroma 向量库（使用本地 CPU 上的 embedding 模型）。"""
     embeddings = HuggingFaceEmbeddings(
         model_name=settings.embedding_model,
         model_kwargs={"device": "cpu"},
@@ -32,6 +35,7 @@ def create_vector_store(settings: Settings) -> Chroma:
 
 
 def ingest(path: Path, settings: Settings) -> None:
+    """解析并导入文献到 Chroma 向量库，打印导入统计。"""
     if not path.exists():
         raise SystemExit(f"输入路径不存在：{path}")
     documents, skipped = load_documents(path, settings)
@@ -45,6 +49,7 @@ def ingest(path: Path, settings: Settings) -> None:
 
 
 def create_agent(settings: Settings):
+    """创建 LLM 与混合检索器，并构建编译好的 LangGraph Agent。"""
     api_key = settings.require_api_key()
     llm = ChatOpenAI(
         model=settings.openai_model,
@@ -57,6 +62,7 @@ def create_agent(settings: Settings):
 
 
 def main() -> None:
+    """解析子命令参数并分发到 ingest / ask / chat 三种模式。"""
     parser = argparse.ArgumentParser(description="基于 RAG + ReAct + LangGraph 的文献综述助手")
     commands = parser.add_subparsers(dest="command", required=True)
     ingest_parser = commands.add_parser("ingest", help="导入 PDF/Markdown 文献")

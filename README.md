@@ -14,11 +14,14 @@
 ## 📁 项目结构
 
 ```
-├── main.py
-├── agent/
-├── loader/
-├── vector_store/
+├── src/
+│   └── lit_review_agent/   # Agent、图状态、检索、解析与 CLI
+├── scripts/                # 演示 PDF 生成器
+├── tests/                  # 离线自动化测试
+├── demo_papers/            # 演示文献（PDF/Markdown）
 ├── requirements.txt
+├── pyproject.toml
+├── .env.example
 ├── .gitignore
 └── README.md
 ```
@@ -26,7 +29,8 @@
 ## 🚀 快速启动
 ```bash
 pip install -r requirements.txt
-python main.py
+python -m lit_review_agent ingest demo_papers
+python -m lit_review_agent ask "你的研究问题"
 ```
 
 ## 🧩 功能亮点
